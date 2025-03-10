@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -76,7 +77,7 @@ func buildPrompt(modifiedFiles []string, gitDiff string) (string, error) {
 	return prompt, nil
 }
 
-func main() {
+func generatePrompt() {
 	modifiedFile, err := getModifiedFiles()
 	if err != nil {
 		fmt.Println(err)
@@ -101,4 +102,25 @@ func main() {
 	}
 
 	fmt.Println("✅ Le prompt a été copié dans le presse-papiers. Vous pouvez maintenant le coller.")
+}
+
+func main() {
+	h := flag.Bool("h", false, "Show help message")
+	help := flag.Bool("help", false, "Show help message")
+	v := flag.Bool("v", false, "Show version")
+	version := flag.Bool("version", false, "Show version")
+
+	flag.Parse()
+
+	if *h || *help {
+		printUsage()
+		return
+	}
+
+	if *v || *version {
+		printVersion()
+		return
+	}
+
+	generatePrompt()
 }
