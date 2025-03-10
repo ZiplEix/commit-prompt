@@ -4,6 +4,16 @@ import subprocess
 import logging
 import pyperclip
 
+from selenium.webdriver.chrome.options import Options
+import undetected_chromedriver.v2 as uc
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
+from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+
 def extract_text(soup):
     text_parts = []
     for element in soup.find("div", class_="markdown").descendants:
