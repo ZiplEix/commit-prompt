@@ -12,6 +12,16 @@ import (
 	"github.com/atotto/clipboard"
 )
 
+type parameters struct {
+	includeLogs  bool
+	maxLogs      int
+	outputFormat string
+	commitFormat string
+	customFormat string
+}
+
+var params parameters
+
 func getModifiedFiles() ([]string, error) {
 	if _, err := os.Stat(".git"); os.IsNotExist(err) {
 		return nil, fmt.Errorf("no git repository found")
@@ -57,7 +67,6 @@ func getGitDiff() (string, error) {
 }
 
 func getGitLogs(maxLogs int) (string, error) {
-	// fmt.Println("🔄 Récupération des logs git...")
 	fmt.Println("🔄 Getting git logs...")
 
 	var cmd *exec.Cmd
@@ -77,14 +86,20 @@ func getGitLogs(maxLogs int) (string, error) {
 	return out.String(), nil
 }
 
-func buildPrompt(modifiedFiles []string, gitDiff string, log string, maxLogs int) (string, error) {
+func buildPrompt(modifiedFiles []string, gitDiff string, log string) (string, error) {
 	if len(modifiedFiles) < 1 {
 		return "", fmt.Errorf("no modified file detected")
 	}
 
 	fmt.Println("🔄 Building prompt...")
 
-	prompt := "Write me a commit message following the conventional commit format for this pending changes:\n\n"
+	prompt := ""
+
+	if params.customFormat == "" {
+		prompt += fmt.Sprintf("Write me a commit message following the %s convention for this pending changes:\n\n", params.commitFormat)
+	} else {
+		prompt += fmt.Sprintf("Write me a commit message for this pending changes: The commit format should follow this rule: %s\n\n", params.customFormat)
+	}
 
 	prompt += "Here are my modified files:\n"
 	for _, file := range modifiedFiles {
@@ -100,10 +115,10 @@ func buildPrompt(modifiedFiles []string, gitDiff string, log string, maxLogs int
 	prompt += gitDiff
 
 	if log != "" {
-		if maxLogs <= 0 {
+		if params.maxLogs <= 0 {
 			prompt += "\nFor reference, here are the previous commits:\n"
 		} else {
-			prompt += fmt.Sprintf("\nFor reference, here are the previous %d commits:\n", maxLogs)
+			prompt += fmt.Sprintf("\nFor reference, here are the previous %d commits:\n", params.maxLogs)
 		}
 		prompt += log
 	}
@@ -113,7 +128,7 @@ func buildPrompt(modifiedFiles []string, gitDiff string, log string, maxLogs int
 	return prompt, nil
 }
 
-func generatePrompt(includeLogs bool, maxLogs int) {
+func generatePrompt() {
 	modifiedFile, err := getModifiedFiles()
 	if err != nil {
 		fmt.Println(err)
@@ -127,26 +142,45 @@ func generatePrompt(includeLogs bool, maxLogs int) {
 	}
 
 	logs := ""
-	if includeLogs {
-		logs, err = getGitLogs(maxLogs)
+	if params.includeLogs {
+		logs, err = getGitLogs(params.maxLogs)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 	}
 
-	prompt, err := buildPrompt(modifiedFile, gitDiff, logs, maxLogs)
+	prompt, err := buildPrompt(modifiedFile, gitDiff, logs)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	err = clipboard.WriteAll(prompt)
-	if err != nil {
-		log.Fatalf("❌ Error while copying to clipboard: %v", err)
+	if params.outputFormat == "stdout" {
+		fmt.Println(prompt)
+		return
+	} else if params.outputFormat == "clipboard" {
+		err = clipboard.WriteAll(prompt)
+		if err != nil {
+			log.Fatalf("❌ Error while copying to clipboard: %v", err)
+		}
+
+		fmt.Println("✅ The prompt has been copied to the clipboard. You can now paste it.")
+	}
+}
+
+func checkParams() error {
+	if params.outputFormat != "clipboard" && params.outputFormat != "stdout" {
+		fmt.Println("❌ Error: invalid output format")
+		return fmt.Errorf("invalid output format")
 	}
 
-	fmt.Println("✅ The prompt has been copied to the clipboard. You can now paste it.")
+	if params.commitFormat != "conventional linux" && params.commitFormat != "gitmoji" {
+		fmt.Printf("❌ Error: invalid commit format, have %s, but want %s or %s\n", params.commitFormat, "conventional", "gitmoji")
+		return fmt.Errorf("invalid commit format")
+	}
+
+	return nil
 }
 
 func main() {
@@ -156,6 +190,9 @@ func main() {
 	version := flag.Bool("version", false, "Show version")
 	noLogs := flag.Bool("no-logs", false, "Do not include git logs in the prompt")
 	maxLogs := flag.Int("max-logs", 0, "Maximum number of logs to include in the prompt (0 for all logs)")
+	outputFormat := flag.String("output-format", "clipboard", "Output format (clipboard, stdout)")
+	commitFormat := flag.String("commit-format", "conventional linux", "Commit format (conventional linux, gitmoji)")
+	customFormat := flag.String("custom-format", "", "Custom format string to specify the output format, wil be write at the end on the prompt")
 
 	flag.Parse()
 
@@ -169,5 +206,16 @@ func main() {
 		return
 	}
 
-	generatePrompt(!(*noLogs), *maxLogs)
+	params.includeLogs = !(*noLogs)
+	params.maxLogs = *maxLogs
+	params.outputFormat = *outputFormat
+	params.commitFormat = *commitFormat
+	params.customFormat = *customFormat
+
+	err := checkParams()
+	if err != nil {
+		return
+	}
+
+	generatePrompt()
 }
