@@ -17,6 +17,8 @@ func getModifiedFiles() ([]string, error) {
 		return nil, fmt.Errorf("no git repository found")
 	}
 
+	fmt.Println("🔄 Getting modified files...")
+
 	cmd := exec.Command("git", "diff", "--cached", "--name-only")
 
 	var out bytes.Buffer
@@ -40,6 +42,8 @@ func getGitDiff() (string, error) {
 		return "", fmt.Errorf("no git repository found")
 	}
 
+	fmt.Println("🔄 Getting git diff...")
+
 	cmd := exec.Command("git", "diff", "--cached")
 
 	var out bytes.Buffer
@@ -52,10 +56,33 @@ func getGitDiff() (string, error) {
 	return out.String(), nil
 }
 
-func buildPrompt(modifiedFiles []string, gitDiff string) (string, error) {
+func getGitLogs(maxLogs int) (string, error) {
+	// fmt.Println("🔄 Récupération des logs git...")
+	fmt.Println("🔄 Getting git logs...")
+
+	var cmd *exec.Cmd
+	if maxLogs <= 0 {
+		cmd = exec.Command("git", "log")
+	} else {
+		cmd = exec.Command("git", "log", fmt.Sprintf("-%d", maxLogs))
+	}
+
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to run git log command: %w", err)
+	}
+
+	return out.String(), nil
+}
+
+func buildPrompt(modifiedFiles []string, gitDiff string, log string, maxLogs int) (string, error) {
 	if len(modifiedFiles) < 1 {
 		return "", fmt.Errorf("no modified file detected")
 	}
+
+	fmt.Println("🔄 Building prompt...")
 
 	prompt := "Write me a commit message following the conventional commit format for this pending changes:\n\n"
 
@@ -72,12 +99,21 @@ func buildPrompt(modifiedFiles []string, gitDiff string) (string, error) {
 	prompt += "and here is the result of the command git diff --cached:\n"
 	prompt += gitDiff
 
+	if log != "" {
+		if maxLogs <= 0 {
+			prompt += "\nFor reference, here are the previous commits:\n"
+		} else {
+			prompt += fmt.Sprintf("\nFor reference, here are the previous %d commits:\n", maxLogs)
+		}
+		prompt += log
+	}
+
 	prompt += "\n\nYour answer should only contain the commit message and the the body of the commit without enything else."
 
 	return prompt, nil
 }
 
-func generatePrompt() {
+func generatePrompt(includeLogs bool, maxLogs int) {
 	modifiedFile, err := getModifiedFiles()
 	if err != nil {
 		fmt.Println(err)
@@ -90,7 +126,16 @@ func generatePrompt() {
 		return
 	}
 
-	prompt, err := buildPrompt(modifiedFile, gitDiff)
+	logs := ""
+	if includeLogs {
+		logs, err = getGitLogs(maxLogs)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
+	prompt, err := buildPrompt(modifiedFile, gitDiff, logs, maxLogs)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -98,10 +143,10 @@ func generatePrompt() {
 
 	err = clipboard.WriteAll(prompt)
 	if err != nil {
-		log.Fatalf("❌ Erreur lors de la copie dans le presse-papiers : %v", err)
+		log.Fatalf("❌ Error while copying to clipboard: %v", err)
 	}
 
-	fmt.Println("✅ Le prompt a été copié dans le presse-papiers. Vous pouvez maintenant le coller.")
+	fmt.Println("✅ The prompt has been copied to the clipboard. You can now paste it.")
 }
 
 func main() {
@@ -109,6 +154,8 @@ func main() {
 	help := flag.Bool("help", false, "Show help message")
 	v := flag.Bool("v", false, "Show version")
 	version := flag.Bool("version", false, "Show version")
+	noLogs := flag.Bool("no-logs", false, "Do not include git logs in the prompt")
+	maxLogs := flag.Int("max-logs", 0, "Maximum number of logs to include in the prompt (0 for all logs)")
 
 	flag.Parse()
 
@@ -122,5 +169,5 @@ func main() {
 		return
 	}
 
-	generatePrompt()
+	generatePrompt(!(*noLogs), *maxLogs)
 }
