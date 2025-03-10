@@ -11,13 +11,20 @@ Commit Prompt is a CLI tool written in Go that generates a detailed prompt to he
 
 ## Installation
 
-Install the tool using `go install`:
+### Install the tool using `go install`:
 
 ```sh
 go install github.com/ZiplEix/commit-prompt@latest
 ```
 
 Ensure that `$GOPATH/bin` is in your system's PATH so you can run the command globally.
+
+
+### Install the tool without go:
+
+```sh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ZiplEix/commit-prompt/refs/heads/master/install.sh)"
+```
 
 ## Usage
 
