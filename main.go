@@ -123,7 +123,7 @@ func buildPrompt(modifiedFiles []string, gitDiff string, log string) (string, er
 		prompt += log
 	}
 
-	prompt += "\n\nYour answer should only contain the commit message and the the body of the commit without enything else."
+	prompt += "\n\nYour answer should only contain the commit message and the the body of the commit without enything else.\nWrite the commit message on a code block.\n"
 
 	return prompt, nil
 }
